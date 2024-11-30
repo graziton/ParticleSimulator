@@ -201,6 +201,8 @@ def run_simulation():
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     clock = pygame.time.Clock()
     particles = initialize_particles(PARTICLE_COUNT)
+    # Initialize trails for each particle
+    trails = {p: [] for p in particles}  # Dictionary to store trails for each particle
 
     running = True
     while running:
@@ -220,9 +222,24 @@ def run_simulation():
         for p in particles:
             quadtree.compute_force(p, THETA)
 
+        # Calculate the maximum speed and adjust the time step dynamically
+        max_speed = max(math.sqrt(p.vx**2 + p.vy**2) for p in particles)
+        TIME_STEP = min(5, PARTICLE_RADIUS / (max_speed + 1e-7))  # Ensure stability
+
         update_particles(particles)
         handle_collisions(particles)
         handle_wall_collisions(particles)
+
+        # Update trails for each particle
+        for p in particles:
+            trails[p].append((p.x, p.y))  # Add the current position to the trail
+            if len(trails[p]) > 50:  # Limit trail length to avoid memory issues
+                trails[p].pop(0)
+
+        # Draw trails for each particle
+        for p in particles:
+            for i in range(1, len(trails[p])):
+                pygame.draw.line(screen, (100, 100, 255), trails[p][i - 1], trails[p][i], 1)  # Draw trail segments
 
         for p in particles:
             kinetic_energy = 0.5 * p.mass * (p.vx**2 + p.vy**2)
@@ -230,9 +247,6 @@ def run_simulation():
             color_intensity = min(255, int(kinetic_energy * scale_factor))  # Scale intensity
             color = (color_intensity, 0, 255 - color_intensity)  # Gradient from blue to red
             pygame.draw.circle(screen, color, (int(p.x), int(p.y)), p.radius)
-
-            
-        
 
         # Draw velocity vectors
         for p in particles:
