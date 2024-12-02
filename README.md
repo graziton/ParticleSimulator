@@ -1,14 +1,13 @@
 # Particle Dynamics Simulation
 
-This project simulates particles moving under forces of attraction and collision. It uses a QuadTree structure for efficient force calculations, visualizations for forces, velocities, and energy-based coloring.
+This project simulates particles moving under forces of attraction and collision.
 
 ## Features
-- Particle collisions (elastic and wall collisions)
+- Particle collisions (elastic/inelastic and wall collisions)
 - Energy and momentum conservation
 - Adaptive time step for stability
 - Force and velocity visualization
 - Energy-based particle coloring
-- Logging for analysis
 
 ## Requirements
 - Python 3.x
