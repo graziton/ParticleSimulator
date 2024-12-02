@@ -3,18 +3,17 @@ import random
 import math
 
 # Constants
-WIDTH, HEIGHT = 800, 600
-PARTICLE_COUNT = 5  # Number of particles to simulate
+WIDTH, HEIGHT = 1280, 720
 TIME_STEP = 5  # Time step for updates
 MAX_FORCE = 1e9  # Reduced maximum allowable force for smoother movement
-THETA = 0.8  # Multipole approximation threshold
 K_COULOMB = 8.9875e9  # Coulomb's constant (in N·m²/C²)
-PARTICLE_RADIUS = 18  # Fixed radius for all particles
-DAMPING = 0.98  # Damping factor to reduce velocity over time
+DAMPING_WALL = 1  # Damping factor to reduce velocity over time
+DAMPING_OBJECT = 1
+EPSILON = 1e-7  # Small value to avoid division by zero
 
 # Particle class
 class Particle:
-    def __init__(self, x, y, mass, radius=PARTICLE_RADIUS):
+    def __init__(self, x, y, mass, radius):
         self.x = x
         self.y = y
         self.mass = mass
@@ -24,104 +23,39 @@ class Particle:
         self.vx = 0  # Velocity in x direction
         self.vy = 0  # Velocity in y direction
 
-# QuadTree Node class
-class QuadTreeNode:
-    def __init__(self, x, y, size):
-        self.x = x  # X position of the node
-        self.y = y  # Y position of the node
-        self.size = size  # Size of the node
-        self.particles = []  # Particles in the node
-        self.center_of_mass = [0, 0]  # Center of mass [x, y]
-        self.mass = 0  # Total mass of particles in this node
-        self.children = []  # Subnodes (4 children)
-
-    def insert(self, p):
-        if len(self.children) == 0 and len(self.particles) < 4:
-            self.particles.append(p)
-            self._update_mass_properties()
-        else:
-            if len(self.children) == 0:
-                self.subdivide()
-            for child in self.children:
-                if child.contains(p):
-                    child.insert(p)
-                    break
-
-    def contains(self, p):
-        return self.x <= p.x < self.x + self.size and self.y <= p.y < self.y + self.size
-
-    def subdivide(self):
-        half_size = self.size / 2
-        self.children.append(QuadTreeNode(self.x, self.y, half_size))
-        self.children.append(QuadTreeNode(self.x + half_size, self.y, half_size))
-        self.children.append(QuadTreeNode(self.x, self.y + half_size, half_size))
-        self.children.append(QuadTreeNode(self.x + half_size, self.y + half_size, half_size))
-        for p in self.particles:
-            for child in self.children:
-                if child.contains(p):
-                    child.insert(p)
-                    break
-        self.particles = []
-        self._update_mass_properties()
-
-    def _update_mass_properties(self):
-        if len(self.children) == 0:
-            # Leaf node: compute mass and center of mass from particles
-            self.mass = sum(p.mass for p in self.particles)
-            if self.mass > 0:
-                self.center_of_mass[0] = sum(p.x * p.mass for p in self.particles) / self.mass
-                self.center_of_mass[1] = sum(p.y * p.mass for p in self.particles) / self.mass
-        else:
-            # Internal node: compute mass and center of mass from children
-            self.mass = sum(child.mass for child in self.children)
-            if self.mass > 0:
-                self.center_of_mass[0] = sum(child.center_of_mass[0] * child.mass for child in self.children) / self.mass
-                self.center_of_mass[1] = sum(child.center_of_mass[1] * child.mass for child in self.children) / self.mass
-
-    def compute_force(self, particle, theta):
-        if len(self.children) == 0:
-            for p in self.particles:
-                if p != particle:
-                    self._compute_pairwise_force(p, particle)
-        else:
-            dx = self.center_of_mass[0] - particle.x
-            dy = self.center_of_mass[1] - particle.y
-            distance = math.sqrt(dx**2 + dy**2 + 1e-7)
-            if distance < 1:
-                return
-            if self.size / distance < theta:
-                force = K_COULOMB * self.mass * particle.mass / (distance**2 + 1e-7)
-                force = min(force, MAX_FORCE)
-                particle.fx += force * dx / distance
-                particle.fy += force * dy / distance
-            else:
-                for child in self.children:
-                    child.compute_force(particle, theta)
-
-    def _compute_pairwise_force(self, p1, p2):
-        dx = p2.x - p1.x
-        dy = p2.y - p1.y
-        distance = math.sqrt(dx**2 + dy**2)
-        if distance < p1.radius + p2.radius:
-            return
-        force = K_COULOMB * p1.mass * p2.mass / (distance**2 + 1e-7)
-        force = min(force, MAX_FORCE)
-        fx = force * dx / distance
-        fy = force * dy / distance
-        p1.fx += fx
-        p1.fy += fy
-        p2.fx -= fx
-        p2.fy -= fy
-
 # Initialize particles
-def initialize_particles(count):
+def initialize_particles(count, radius):
     particles = []
+    mass = 1e12  # Assign a uniform mass to all particles
     for _ in range(count):
-        x = random.uniform(PARTICLE_RADIUS, WIDTH - PARTICLE_RADIUS)
-        y = random.uniform(PARTICLE_RADIUS, HEIGHT - PARTICLE_RADIUS)
-        mass = random.uniform(1e11, 1e12)
-        particles.append(Particle(x, y, mass))
+        x = random.uniform(radius, WIDTH - radius)
+        y = random.uniform(radius, HEIGHT - radius)
+        particles.append(Particle(x, y, mass, radius))
     return particles
+
+# Compute pairwise forces
+def compute_all_pairwise_forces(particles):
+    for i in range(len(particles) - 1):
+        for j in range(i + 1, len(particles)):
+            p1, p2 = particles[i], particles[j]
+            dx = p2.x - p1.x
+            dy = p2.y - p1.y
+            distance_squared = dx**2 + dy**2 + EPSILON
+            distance = math.sqrt(distance_squared)
+
+            if distance < p1.radius + p2.radius:
+                continue  # Skip overlapping particles
+
+            force = K_COULOMB * p1.mass * p2.mass / distance_squared
+            force = min(force, MAX_FORCE)
+
+            fx = force * dx / distance
+            fy = force * dy / distance
+
+            p1.fx += fx
+            p1.fy += fy
+            p2.fx -= fx
+            p2.fy -= fy
 
 # Update particles with velocity and forces
 def update_particles(particles):
@@ -130,129 +64,222 @@ def update_particles(particles):
         p.vy += (p.fy / p.mass) * TIME_STEP
         p.x += p.vx * TIME_STEP
         p.y += p.vy * TIME_STEP
-        p.fx, p.fy = 0, 0
+        p.fx = p.fy = 0  # Reset forces inline
 
 # Handle collisions between particles
 def handle_collisions(particles):
-    for i, p1 in enumerate(particles):
-        for j, p2 in enumerate(particles[i + 1:], i + 1):
+    for i in range(len(particles) - 1):
+        for j in range(i + 1, len(particles)):
+            p1, p2 = particles[i], particles[j]
             dx = p2.x - p1.x
             dy = p2.y - p1.y
-            distance = math.sqrt(dx**2 + dy**2)
+            distance_squared = dx**2 + dy**2
+            distance = math.sqrt(distance_squared)
 
-            relative_speed = math.sqrt((p2.vx - p1.vx)**2 + (p2.vy - p1.vy)**2)
-            time_to_collision = (p1.radius + p2.radius - distance) / (relative_speed + 1e-7)
-            if distance < p1.radius + p2.radius and time_to_collision < TIME_STEP:
-                # Resolve overlap
+            if distance < p1.radius + p2.radius:
                 overlap = p1.radius + p2.radius - distance
-                resolve_x = dx / distance * overlap / 2
-                resolve_y = dy / distance * overlap / 2
+                inv_distance = 1 / distance
+                resolve_x = dx * inv_distance * overlap / 2
+                resolve_y = dy * inv_distance * overlap / 2
                 p1.x -= resolve_x
                 p1.y -= resolve_y
                 p2.x += resolve_x
                 p2.y += resolve_y
 
-                # Collision normal
-                normal_x = dx / distance
-                normal_y = dy / distance
+                # Normal and tangential velocities
+                normal_x = dx * inv_distance
+                normal_y = dy * inv_distance
+                tangent_x = -normal_y
+                tangent_y = normal_x
 
-                # Relative velocity
-                relative_velocity_x = p2.vx - p1.vx
-                relative_velocity_y = p2.vy - p1.vy
+                # Normal and tangential components of velocities
+                v1n = p1.vx * normal_x + p1.vy * normal_y
+                v2n = p2.vx * normal_x + p2.vy * normal_y
+                v1t = p1.vx * tangent_x + p1.vy * tangent_y
+                v2t = p2.vx * tangent_x + p2.vy * tangent_y
 
-                # Velocity along the collision normal
-                velocity_along_normal = (
-                    relative_velocity_x * normal_x + relative_velocity_y * normal_y
-                )
+                # Swap normal components
+                v1n, v2n = v2n, v1n
 
-                if velocity_along_normal > 0:
-                    continue
-
-                # Impulse scalar
-                impulse = (2 * velocity_along_normal) / (1 / p1.mass + 1 / p2.mass)
-
-                # Apply impulse
-                impulse_x = impulse * normal_x
-                impulse_y = impulse * normal_y
-                p1.vx += impulse_x / p1.mass
-                p1.vy += impulse_y / p1.mass
-                p2.vx -= impulse_x / p2.mass
-                p2.vy -= impulse_y / p2.mass
+                # Update velocities
+                p1.vx = v1t * tangent_x + v1n * normal_x
+                p1.vy = v1t * tangent_y + v1n * normal_y
+                p2.vx = v2t * tangent_x + v2n * normal_x
+                p2.vy = v2t * tangent_y + v2n * normal_y
 
 # Handle collisions with walls
 def handle_wall_collisions(particles):
     for p in particles:
-        if p.x - p.radius < 0:
-            p.vx = abs(p.vx)
+        if p.x - p.radius < 0:  # Left wall
+            p.vx = abs(p.vx) * DAMPING_WALL
             p.x = p.radius
-        elif p.x + p.radius > WIDTH:
-            p.vx = -abs(p.vx)
+        elif p.x + p.radius > WIDTH:  # Right wall
+            p.vx = -abs(p.vx) * DAMPING_WALL
             p.x = WIDTH - p.radius
-        if p.y - p.radius < 0:
-            p.vy = abs(p.vy)
+        if p.y - p.radius < 0:  # Top wall
+            p.vy = abs(p.vy) * DAMPING_WALL
             p.y = p.radius
-        elif p.y + p.radius > HEIGHT:
-            p.vy = -abs(p.vy)
+        elif p.y + p.radius > HEIGHT:  # Bottom wall
+            p.vy = -abs(p.vy) * DAMPING_WALL
             p.y = HEIGHT - p.radius
 
-# Main simulation loop
-def run_simulation():
+# Optimized menu
+def menu():
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    clock = pygame.time.Clock()
-    particles = initialize_particles(PARTICLE_COUNT)
-    # Initialize trails for each particle
-    trails = {p: [] for p in particles}  # Dictionary to store trails for each particle
+    pygame.display.set_caption("Particle Simulation - Menu")
+    font = pygame.font.Font(None, 40)
+    small_font = pygame.font.Font(None, 30)
 
-    running = True
-    while running:
-        screen.fill((0, 0, 0))
+    static_menu = pygame.Surface((WIDTH, HEIGHT))
+    static_menu.fill((30, 30, 30))
+    title_text = font.render("Particle Simulation", True, (255, 255, 255))
+    particles_text = small_font.render("Number of Atoms (1-100):", True, (200, 200, 200))
+    radius_text = small_font.render("Radius (1-10):", True, (200, 200, 200))
+
+    static_menu.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, 50))
+    static_menu.blit(particles_text, (100, 150))
+    static_menu.blit(radius_text, (100, 250))
+
+    start_rect = pygame.Rect(WIDTH // 2 - 150, 400, 300, 60)
+    quit_rect = pygame.Rect(WIDTH // 2 - 150, 500, 300, 60)
+    pygame.draw.rect(static_menu, (50, 205, 50), start_rect)
+    pygame.draw.rect(static_menu, (205, 50, 50), quit_rect)
+
+    start_text = font.render("Start Simulation", True, (0, 0, 0))
+    quit_text = font.render("Quit", True, (0, 0, 0))
+
+    static_menu.blit(start_text, (start_rect.x + (start_rect.width - start_text.get_width()) // 2,
+                                  start_rect.y + (start_rect.height - start_text.get_height()) // 2))
+    static_menu.blit(quit_text, (quit_rect.x + (quit_rect.width - quit_text.get_width()) // 2,
+                                 quit_rect.y + (quit_rect.height - quit_text.get_height()) // 2))
+
+    input_boxes = {"particles": "", "radius": ""}
+    active_box = None
+
+    while True:
+        screen.blit(static_menu, (0, 0))
+
+        for i, (key, value) in enumerate(input_boxes.items()):
+            box_rect = pygame.Rect(400, 140 + i * 100, 200, 40)
+            color = (255, 255, 255) if active_box == key else (200, 200, 200)
+            pygame.draw.rect(screen, color, box_rect, 2)
+            text_surface = small_font.render(value, True, (255, 255, 255))
+            screen.blit(text_surface, (box_rect.x + 5, box_rect.y + 5))
+
+        pygame.display.flip()
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                return None, None
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if start_rect.collidepoint(event.pos):
+                    try:
+                        particle_count = int(input_boxes["particles"])
+                        radius_value = int(input_boxes["radius"])
+                        if 1 <= particle_count <= 100 and 1 <= radius_value <= 10:
+                            return particle_count, 5 + 2 * (radius_value - 1)
+                    except ValueError:
+                        pass
+                elif quit_rect.collidepoint(event.pos):
+                    return None, None
+                else:
+                    for i, key in enumerate(input_boxes):
+                        box_rect = pygame.Rect(400, 140 + i * 100, 200, 40)
+                        if box_rect.collidepoint(event.pos):
+                            active_box = key
+                            break
+                    else:
+                        active_box = None
+            elif event.type == pygame.KEYDOWN and active_box:
+                if event.key == pygame.K_BACKSPACE:
+                    input_boxes[active_box] = input_boxes[active_box][:-1]
+                elif event.unicode.isdigit():
+                    input_boxes[active_box] += event.unicode
+
+# Main simulation loop
+def run_simulation(particle_count, radius):
+    pygame.init()
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    clock = pygame.time.Clock()
+    particles = initialize_particles(particle_count, radius)
+
+    # Trails dictionary for particle paths
+    trails = {p: [] for p in particles}
+    selected_particle = None  # For dragging a particle
+
+    trail_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)  # Persistent surface for trails
+    max_trail_length = 50  # Limit trail length
+
+    running = True
+    while running:
+        screen.fill((0, 0, 0))  # Clear the main screen
+
+        # Handle events
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
                 running = False
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_x, mouse_y = pygame.mouse.get_pos()
+                for p in particles:
+                    if math.sqrt((mouse_x - p.x) ** 2 + (mouse_y - p.y) ** 2) < p.radius:
+                        selected_particle = p
+                        break
+            elif event.type == pygame.MOUSEBUTTONUP:
+                selected_particle = None
+            elif event.type == pygame.MOUSEMOTION and selected_particle:
+                mouse_x, mouse_y = pygame.mouse.get_pos()
+                selected_particle.x, selected_particle.y = mouse_x, mouse_y
 
-        if 'quadtree' not in locals():  # Create the QuadTree only once
-            quadtree = QuadTreeNode(0, 0, max(WIDTH, HEIGHT))
-        else:
-            quadtree = QuadTreeNode(0, 0, max(WIDTH, HEIGHT))  # Rebuild (Optional Optimization)
-            for p in particles:
-                quadtree.insert(p)
-
-        for p in particles:
-            quadtree.compute_force(p, THETA)
-
-        # Calculate the maximum speed and adjust the time step dynamically
-        max_speed = max(math.sqrt(p.vx**2 + p.vy**2) for p in particles)
-        TIME_STEP = min(5, PARTICLE_RADIUS / (max_speed + 1e-7))  # Ensure stability
-
+        # Compute forces and update particles
+        compute_all_pairwise_forces(particles)
+        max_speed = max(math.sqrt(p.vx ** 2 + p.vy ** 2) for p in particles)
+        global TIME_STEP  # Update time step dynamically
+        TIME_STEP = min(5, radius / (max_speed + EPSILON))
         update_particles(particles)
         handle_collisions(particles)
         handle_wall_collisions(particles)
 
-        # Update trails for each particle
+        # Update trails
         for p in particles:
-            trails[p].append((p.x, p.y))  # Add the current position to the trail
-            if len(trails[p]) > 50:  # Limit trail length to avoid memory issues
+            trails[p].append((p.x, p.y, p.radius))
+            if len(trails[p]) > max_trail_length:
                 trails[p].pop(0)
 
-        # Draw trails for each particle
+        # Draw comet-like trails
+        trail_surface.fill((0, 0, 0, 0))  # Clear trail surface
         for p in particles:
-            for i in range(1, len(trails[p])):
-                pygame.draw.line(screen, (100, 100, 255), trails[p][i - 1], trails[p][i], 1)  # Draw trail segments
+            if len(trails[p]) > 1:
+                for i in range(len(trails[p]) - 1, 0, -1):
+                    x1, y1, radius1 = trails[p][i]
+                    x2, y2, radius2 = trails[p][i - 1]
+                    alpha = int(255 * (i / len(trails[p])))
 
+                    # Width for fade effect
+                    width1 = radius1 * ((i / len(trails[p])) ** 0.5)
+                    width2 = radius2 * (((i - 1) / len(trails[p])) ** 0.5)
+
+                    # Trail color transition from red to blue
+                    red = 255 - int(255 * (i / len(trails[p])))
+                    blue = int(255 * (i / len(trails[p])))
+                    trail_color = (red, 0, blue)
+
+                    pygame.draw.polygon(
+                        trail_surface,
+                        trail_color + (alpha,),
+                        [
+                            (x1 - width1, y1), (x1 + width1, y1),
+                            (x2 + width2, y2), (x2 - width2, y2),
+                        ],
+                    )
+        screen.blit(trail_surface, (0, 0))  # Add trails to the main screen
+
+        # Draw particles with color based on speed
         for p in particles:
-            kinetic_energy = 0.5 * p.mass * (p.vx**2 + p.vy**2)
-            scale_factor = math.sqrt(1e-9 * 1e-10)  # Equivalent to 1e-9.5
-            color_intensity = min(255, int(kinetic_energy * scale_factor))  # Scale intensity
-            color = (color_intensity, 0, 255 - color_intensity)  # Gradient from blue to red
+            speed_squared = p.vx ** 2 + p.vy ** 2
+            color_intensity = min(255, int(0.5 * p.mass * speed_squared * math.sqrt(1e-9 * 1e-10)))
+            color = (color_intensity, 0, 255 - color_intensity)
             pygame.draw.circle(screen, color, (int(p.x), int(p.y)), p.radius)
-
-        # Draw velocity vectors
-        for p in particles:
-            end_x = p.x + p.vx * 10  # Scale velocities for visualization
-            end_y = p.y + p.vy * 10
-            pygame.draw.line(screen, (255, 255, 0), (p.x, p.y), (end_x, end_y), 2)
 
         pygame.display.flip()
         clock.tick(60)
@@ -260,4 +287,6 @@ def run_simulation():
     pygame.quit()
 
 if __name__ == "__main__":
-    run_simulation()
+    particle_count, radius = menu()
+    if particle_count and radius:
+        run_simulation(particle_count, radius)
