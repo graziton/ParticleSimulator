@@ -12,8 +12,3 @@ This project simulates particles moving under forces of attraction and collision
 ## Requirements
 - Python 3.x
 - pygame library
-
-## Usage
-Run the `animation.py` file:
-```bash
-python particle_simulation.py
