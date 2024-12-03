@@ -131,6 +131,7 @@ def menu():
     font = pygame.font.Font(None, 40)
     small_font = pygame.font.Font(None, 30)
 
+    # Pre-rendering static UI elements onto a separate surface
     static_menu = pygame.Surface((WIDTH, HEIGHT))
     static_menu.fill((30, 30, 30))
     title_text = font.render("Particle Simulation", True, (255, 255, 255))
@@ -157,9 +158,12 @@ def menu():
     input_boxes = {"particles": "", "radius": ""}
     active_box = None
 
+    clock = pygame.time.Clock()  # Initializing clock for limiting FPS
+
     while True:
         screen.blit(static_menu, (0, 0))
 
+        # Drawing dynamic elements (input boxes)
         for i, (key, value) in enumerate(input_boxes.items()):
             box_rect = pygame.Rect(400, 140 + i * 100, 200, 40)
             color = (255, 255, 255) if active_box == key else (200, 200, 200)
@@ -168,6 +172,7 @@ def menu():
             screen.blit(text_surface, (box_rect.x + 5, box_rect.y + 5))
 
         pygame.display.flip()
+        clock.tick(30)  # Limited FPS to 30 to reduce CPU usage
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
