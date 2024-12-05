@@ -223,8 +223,10 @@ def run_simulation(particle_count, radius):
 
     # Back button properties
     back_button_rect = pygame.Rect(10, 10, 50, 30)  # Small rectangle for the button
-    back_arrow_color = (200, 200, 200)  # Gray arrow
     back_hover_color = (255, 255, 255)  # Lighter gray on hover
+    back_arrow_color = (200, 200, 200)  # Default arrow color
+
+    back_button_pressed = False  # Track if the back button is pressed
 
     running = True
     while running:
@@ -233,20 +235,24 @@ def run_simulation(particle_count, radius):
         # Handle events
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                pygame.quit()  # Properly quit Pygame
-                exit()  # Terminate the program entirely
+                pygame.quit()
+                exit()
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:  # Pressing ESC goes back to the main menu
-                    return  # Exit the simulation and return to the menu
+                if event.key == pygame.K_ESCAPE:
+                    return  # Escape key goes back to the menu
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 mouse_x, mouse_y = pygame.mouse.get_pos()
                 if back_button_rect.collidepoint(mouse_x, mouse_y):
-                    return  # Back button clicked, return to the menu
+                    back_button_pressed = True  # Button is pressed
                 for p in particles:
                     if math.sqrt((mouse_x - p.x) ** 2 + (mouse_y - p.y) ** 2) < p.radius:
                         selected_particle = p
                         break
             elif event.type == pygame.MOUSEBUTTONUP:
+                mouse_x, mouse_y = pygame.mouse.get_pos()
+                if back_button_pressed and back_button_rect.collidepoint(mouse_x, mouse_y):
+                    return  # Trigger the back action only on release
+                back_button_pressed = False  # Reset the button press state
                 selected_particle = None
             elif event.type == pygame.MOUSEMOTION and selected_particle:
                 mouse_x, mouse_y = pygame.mouse.get_pos()
