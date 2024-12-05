@@ -207,6 +207,48 @@ def menu():
                 elif event.unicode.isdigit():
                     input_boxes[active_box] += event.unicode
 
+def draw_back_button(screen):
+    arrow_color = (255, 255, 255)
+    base_x, base_y = 20, 20
+    width, height = 20, 30
+
+    pygame.draw.rect(screen, arrow_color, (base_x + 18, base_y + height // 3, width, height // 3))
+
+    # Triangle
+    points = [(base_x, base_y + height // 2), 
+              (base_x + width, base_y), 
+              (base_x + width, base_y + height)]
+    pygame.draw.polygon(screen, arrow_color, points)
+
+def draw_pause_play_button(screen, paused):
+    button_color = (255, 255, 255)
+    base_x, base_y = 70, 20
+    width, height = 30, 30
+
+    if paused:  # Triangle for play
+        points = [(base_x, base_y), 
+                  (base_x + width, base_y + height // 2), 
+                  (base_x, base_y + height)]
+        pygame.draw.polygon(screen, button_color, points)
+    else:  # Two vertical rectangles for pause
+        bar_width = width // 3
+        pygame.draw.rect(screen, button_color, (base_x, base_y, bar_width, height))
+        pygame.draw.rect(screen, button_color, (base_x + 2 * bar_width, base_y, bar_width, height))
+
+def draw_reset_button(screen):
+    button_color = (255, 255, 255)
+    center_x, center_y = 120, 35
+    radius = 15
+
+    pygame.draw.circle(screen, button_color, (center_x, center_y), radius, 2)
+
+    arrow_points = [
+        (center_x + radius, center_y),
+        (center_x + radius - 8, center_y - 5),
+        (center_x + radius - 8, center_y + 5)
+    ]
+    pygame.draw.polygon(screen, button_color, arrow_points)
+
 # Main simulation loop
 def run_simulation(particle_count, radius):
     pygame.init()
@@ -221,14 +263,9 @@ def run_simulation(particle_count, radius):
     trail_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)  # Persistent surface for trails
     max_trail_length = 50  # Limit trail length
 
-    # Back button properties
-    back_button_rect = pygame.Rect(10, 10, 50, 30)  # Small rectangle for the button
-    back_hover_color = (255, 255, 255)  # Lighter gray on hover
-    back_arrow_color = (200, 200, 200)  # Default arrow color
-
-    back_button_pressed = False  # Track if the back button is pressed
-
+    paused = False  # Pause/play state
     running = True
+
     while running:
         screen.fill((0, 0, 0))  # Clear the main screen
 
@@ -237,41 +274,55 @@ def run_simulation(particle_count, radius):
             if event.type == pygame.QUIT:
                 pygame.quit()
                 exit()
+
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    return  # Escape key goes back to the menu
+                    return  # Back to the main menu
+
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                mouse_x, mouse_y = pygame.mouse.get_pos()
-                if back_button_rect.collidepoint(mouse_x, mouse_y):
-                    back_button_pressed = True  # Button is pressed
+                mouse_x, mouse_y = event.pos
+
+                # Check if back button clicked
+                if 20 <= mouse_x <= 50 and 20 <= mouse_y <= 50:
+                    return  # Go back to the main menu
+
+                # Check if pause/play button clicked
+                if 70 <= mouse_x <= 100 and 20 <= mouse_y <= 50:
+                    paused = not paused  # Toggle pause/play state
+
+                # Check if reset button clicked
+                if 105 <= mouse_x <= 135 and 20 <= mouse_y <= 50:
+                    particles = initialize_particles(particle_count, radius)  # Reset particles
+                    trails = {p: [] for p in particles}  # Reset trails
+
+                # Check if a particle is being clicked for dragging
                 for p in particles:
                     if math.sqrt((mouse_x - p.x) ** 2 + (mouse_y - p.y) ** 2) < p.radius:
                         selected_particle = p
                         break
+
             elif event.type == pygame.MOUSEBUTTONUP:
-                mouse_x, mouse_y = pygame.mouse.get_pos()
-                if back_button_pressed and back_button_rect.collidepoint(mouse_x, mouse_y):
-                    return  # Trigger the back action only on release
-                back_button_pressed = False  # Reset the button press state
-                selected_particle = None
+                selected_particle = None  # Stop dragging particles
+
             elif event.type == pygame.MOUSEMOTION and selected_particle:
                 mouse_x, mouse_y = pygame.mouse.get_pos()
                 selected_particle.x, selected_particle.y = mouse_x, mouse_y
 
-        # Compute forces and update particles
-        compute_all_pairwise_forces(particles)
-        max_speed = max(math.sqrt(p.vx ** 2 + p.vy ** 2) for p in particles)
-        global TIME_STEP  # Update time step dynamically
-        TIME_STEP = min(5, radius / (max_speed + EPSILON))
-        update_particles(particles)
-        handle_collisions(particles)
-        handle_wall_collisions(particles)
+        # Update simulation only if not paused
+        if not paused:
+            compute_all_pairwise_forces(particles)
+            max_speed = max(math.sqrt(p.vx ** 2 + p.vy ** 2) for p in particles)
+            global TIME_STEP  # Update time step dynamically
+            TIME_STEP = min(5, radius / (max_speed + EPSILON))
+            update_particles(particles)
+            handle_collisions(particles)
+            handle_wall_collisions(particles)
 
-        # Update trails
-        for p in particles:
-            trails[p].append((p.x, p.y, p.radius))
-            if len(trails[p]) > max_trail_length:
-                trails[p].pop(0)
+            # Update trails
+            for p in particles:
+                trails[p].append((p.x, p.y, p.radius))
+                if len(trails[p]) > max_trail_length:
+                    trails[p].pop(0)
 
         # Draw comet-like trails
         trail_surface.fill((0, 0, 0, 0))  # Clear trail surface
@@ -308,13 +359,10 @@ def run_simulation(particle_count, radius):
             color = (color_intensity, 0, 255 - color_intensity)
             pygame.draw.circle(screen, color, (int(p.x), int(p.y)), p.radius)
 
-        # Draw back button
-        mouse_x, mouse_y = pygame.mouse.get_pos()
-        button_color = back_hover_color if back_button_rect.collidepoint(mouse_x, mouse_y) else back_arrow_color
-        pygame.draw.rect(screen, button_color, back_button_rect, border_radius=5)  # Draw button background
-        pygame.draw.polygon(screen, (0, 0, 0), [  # Draw arrow shape
-            (20, 25), (40, 15), (40, 35)
-        ])
+        # Draw buttons
+        draw_back_button(screen)
+        draw_pause_play_button(screen, paused)
+        draw_reset_button(screen)
 
         pygame.display.flip()
         clock.tick(60)
