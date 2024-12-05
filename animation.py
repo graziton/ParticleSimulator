@@ -7,9 +7,9 @@ WIDTH, HEIGHT = 1280, 720
 TIME_STEP = 5  # Time step for updates
 MAX_FORCE = 1e9  # Reduced maximum allowable force for smoother movement
 K_COULOMB = 8.9875e9  # Coulomb's constant (in N·m²/C²)
-DAMPING_WALL = 1  # Damping factor to reduce velocity over time
+DAMPING_WALL = 1
 DAMPING_OBJECT = 1
-EPSILON = 1e-7  # Small value to avoid division by zero
+EPSILON = 1e-7  # To avoid division by zero
 
 # Particle class
 class Particle:
@@ -76,9 +76,9 @@ def handle_collisions(particles):
             distance_squared = dx**2 + dy**2
             distance = math.sqrt(distance_squared)
 
-            if distance < p1.radius + p2.radius:
+            if distance < p1.radius + p2.radius:  # Collision detected
                 overlap = p1.radius + p2.radius - distance
-                inv_distance = 1 / distance
+                inv_distance = 1 / distance if distance > 0 else 0
                 resolve_x = dx * inv_distance * overlap / 2
                 resolve_y = dy * inv_distance * overlap / 2
                 p1.x -= resolve_x
@@ -86,41 +86,46 @@ def handle_collisions(particles):
                 p2.x += resolve_x
                 p2.y += resolve_y
 
-                # Normal and tangential velocities
+                # Compute normal and tangential directions
                 normal_x = dx * inv_distance
                 normal_y = dy * inv_distance
                 tangent_x = -normal_y
                 tangent_y = normal_x
 
-                # Normal and tangential components of velocities
+                # Project velocities onto normal and tangential directions
                 v1n = p1.vx * normal_x + p1.vy * normal_y
                 v2n = p2.vx * normal_x + p2.vy * normal_y
                 v1t = p1.vx * tangent_x + p1.vy * tangent_y
                 v2t = p2.vx * tangent_x + p2.vy * tangent_y
 
-                # Swap normal components
-                v1n, v2n = v2n, v1n
+                # Apply conservation of momentum to normal components
+                m1, m2 = p1.mass, p2.mass
+                v1n_new = ((v1n * (m1 - m2) + 2 * m2 * v2n) / (m1 + m2)) * DAMPING_OBJECT
+                v2n_new = ((v2n * (m2 - m1) + 2 * m1 * v1n) / (m1 + m2)) * DAMPING_OBJECT
 
-                # Update velocities
-                p1.vx = v1t * tangent_x + v1n * normal_x
-                p1.vy = v1t * tangent_y + v1n * normal_y
-                p2.vx = v2t * tangent_x + v2n * normal_x
-                p2.vy = v2t * tangent_y + v2n * normal_y
+                # Combine updated normal and unchanged tangential components
+                p1.vx = v1t * tangent_x + v1n_new * normal_x
+                p1.vy = v1t * tangent_y + v1n_new * normal_y
+                p2.vx = v2t * tangent_x + v2n_new * normal_x
+                p2.vy = v2t * tangent_y + v2n_new * normal_y
 
 # Handle collisions with walls
 def handle_wall_collisions(particles):
     for p in particles:
         if p.x - p.radius < 0:  # Left wall
-            p.vx = abs(p.vx) * DAMPING_WALL
+            p.vx = -p.vx * DAMPING_WALL
             p.x = p.radius
+
         elif p.x + p.radius > WIDTH:  # Right wall
-            p.vx = -abs(p.vx) * DAMPING_WALL
+            p.vx = -p.vx * DAMPING_WALL
             p.x = WIDTH - p.radius
+
         if p.y - p.radius < 0:  # Top wall
-            p.vy = abs(p.vy) * DAMPING_WALL
+            p.vy = -p.vy * DAMPING_WALL
             p.y = p.radius
+
         elif p.y + p.radius > HEIGHT:  # Bottom wall
-            p.vy = -abs(p.vy) * DAMPING_WALL
+            p.vy = -p.vy * DAMPING_WALL
             p.y = HEIGHT - p.radius
 
 # Optimized menu
