@@ -7,8 +7,8 @@ WIDTH, HEIGHT = 1280, 720
 TIME_STEP = 5  # Time step for updates
 MAX_FORCE = 1e9  # Reduced maximum allowable force for smoother movement
 K_COULOMB = 8.9875e9  # Coulomb's constant (in N·m²/C²)
-DAMPING_WALL = 1
-DAMPING_OBJECT = 1
+DAMPING_WALL = 0.99
+DAMPING_OBJECT = 0.99
 EPSILON = 1e-7  # To avoid division by zero
 
 # Particle class
@@ -221,6 +221,11 @@ def run_simulation(particle_count, radius):
     trail_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)  # Persistent surface for trails
     max_trail_length = 50  # Limit trail length
 
+    # Back button properties
+    back_button_rect = pygame.Rect(10, 10, 50, 30)  # Small rectangle for the button
+    back_arrow_color = (200, 200, 200)  # Gray arrow
+    back_hover_color = (255, 255, 255)  # Lighter gray on hover
+
     running = True
     while running:
         screen.fill((0, 0, 0))  # Clear the main screen
@@ -228,9 +233,15 @@ def run_simulation(particle_count, radius):
         # Handle events
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                running = False
+                pygame.quit()  # Properly quit Pygame
+                exit()  # Terminate the program entirely
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:  # Pressing ESC goes back to the main menu
+                    return  # Exit the simulation and return to the menu
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 mouse_x, mouse_y = pygame.mouse.get_pos()
+                if back_button_rect.collidepoint(mouse_x, mouse_y):
+                    return  # Back button clicked, return to the menu
                 for p in particles:
                     if math.sqrt((mouse_x - p.x) ** 2 + (mouse_y - p.y) ** 2) < p.radius:
                         selected_particle = p
@@ -291,12 +302,26 @@ def run_simulation(particle_count, radius):
             color = (color_intensity, 0, 255 - color_intensity)
             pygame.draw.circle(screen, color, (int(p.x), int(p.y)), p.radius)
 
+        # Draw back button
+        mouse_x, mouse_y = pygame.mouse.get_pos()
+        button_color = back_hover_color if back_button_rect.collidepoint(mouse_x, mouse_y) else back_arrow_color
+        pygame.draw.rect(screen, button_color, back_button_rect, border_radius=5)  # Draw button background
+        pygame.draw.polygon(screen, (0, 0, 0), [  # Draw arrow shape
+            (20, 25), (40, 15), (40, 35)
+        ])
+
         pygame.display.flip()
         clock.tick(60)
 
     pygame.quit()
 
+def main():
+    while True:  # Main loop for the application
+        particle_count, radius = menu()
+        if particle_count is None or radius is None:
+            pygame.quit()  # Properly quit Pygame
+            return  # Exit the program entirely
+        run_simulation(particle_count, radius)  # Start the simulation
+
 if __name__ == "__main__":
-    particle_count, radius = menu()
-    if particle_count and radius:
-        run_simulation(particle_count, radius)
+    main()
