@@ -250,9 +250,9 @@ def draw_reset_button(screen, is_hovered):
 
     # Arrow inside the circle
     arrow_points = [
-        (center_x + radius - 8, center_y + 2),
-        (center_x + radius - 18, center_y - 3),
-        (center_x + radius - 18, center_y + 7)
+        (center_x + radius - 22, center_y + 12),
+        (center_x + radius - 12, center_y + 7),
+        (center_x + radius - 12, center_y + 17)
     ]
     pygame.draw.polygon(screen, button_color, arrow_points)
 
