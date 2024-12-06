@@ -5,7 +5,7 @@ import math
 # Constants
 WIDTH, HEIGHT = 1280, 720
 TIME_STEP = 5  # Time step for updates
-MAX_FORCE = 1e12  # Maximum allowable force for smoother movement
+MAX_FORCE = 1e9  # Maximum allowable force for smoother movement
 K_COULOMB = 8.9875e9  # Coulomb's constant (in N·m²/C²)
 DAMPING_WALL = 0.99
 DAMPING_OBJECT = 0.99
