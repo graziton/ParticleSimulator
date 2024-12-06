@@ -5,7 +5,7 @@ import math
 # Constants
 WIDTH, HEIGHT = 1280, 720
 TIME_STEP = 5  # Time step for updates
-MAX_FORCE = 1e9  # Reduced maximum allowable force for smoother movement
+MAX_FORCE = 1e12  # Maximum allowable force for smoother movement
 K_COULOMB = 8.9875e9  # Coulomb's constant (in N·m²/C²)
 DAMPING_WALL = 0.99
 DAMPING_OBJECT = 0.99
@@ -23,10 +23,10 @@ class Particle:
         self.vx = 0  # Velocity in x direction
         self.vy = 0  # Velocity in y direction
 
-# Initialize particles
+# Initializing particles
 def initialize_particles(count, radius):
     particles = []
-    mass = 1e12  # Assign a uniform mass to all particles
+    mass = 1e12  # Assign same mass to all particles
     for _ in range(count):
         x = random.uniform(radius, WIDTH - radius)
         y = random.uniform(radius, HEIGHT - radius)
@@ -64,7 +64,7 @@ def update_particles(particles):
         p.vy += (p.fy / p.mass) * TIME_STEP
         p.x += p.vx * TIME_STEP
         p.y += p.vy * TIME_STEP
-        p.fx = p.fy = 0  # Reset forces inline
+        p.fx = p.fy = 0  # Reset forces
 
 # Handle collisions between particles
 def handle_collisions(particles):
@@ -92,7 +92,7 @@ def handle_collisions(particles):
                 tangent_x = -normal_y
                 tangent_y = normal_x
 
-                # Project velocities onto normal and tangential directions
+                # Apply velocities onto normal and tangential directions
                 v1n = p1.vx * normal_x + p1.vy * normal_y
                 v2n = p2.vx * normal_x + p2.vy * normal_y
                 v1t = p1.vx * tangent_x + p1.vy * tangent_y
@@ -103,7 +103,7 @@ def handle_collisions(particles):
                 v1n_new = ((v1n * (m1 - m2) + 2 * m2 * v2n) / (m1 + m2)) * DAMPING_OBJECT
                 v2n_new = ((v2n * (m2 - m1) + 2 * m1 * v1n) / (m1 + m2)) * DAMPING_OBJECT
 
-                # Combine updated normal and unchanged tangential components
+                # Updated normal and unchanged tangential components
                 p1.vx = v1t * tangent_x + v1n_new * normal_x
                 p1.vy = v1t * tangent_y + v1n_new * normal_y
                 p2.vx = v2t * tangent_x + v2n_new * normal_x
@@ -128,7 +128,7 @@ def handle_wall_collisions(particles):
             p.vy = -p.vy * DAMPING_WALL
             p.y = HEIGHT - p.radius
 
-# Optimized menu
+# Main menu
 def menu():
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -136,7 +136,7 @@ def menu():
     font = pygame.font.Font(None, 40)
     small_font = pygame.font.Font(None, 30)
 
-    # Pre-rendering static UI elements onto a separate surface
+    # Pre-rendering static UI elements onto a separate surface to save processing
     static_menu = pygame.Surface((WIDTH, HEIGHT))
     static_menu.fill((30, 30, 30))
     title_text = font.render("Particle Simulation", True, (255, 255, 255))
@@ -207,45 +207,52 @@ def menu():
                 elif event.unicode.isdigit():
                     input_boxes[active_box] += event.unicode
 
-def draw_back_button(screen):
-    arrow_color = (255, 255, 255)
+def draw_back_button(screen, is_hovered):
+    arrow_color = (255, 255, 255) if is_hovered else (200, 200, 200)
     base_x, base_y = 20, 20
     width, height = 20, 30
 
+    # Rectangle for the tail of the arrow
     pygame.draw.rect(screen, arrow_color, (base_x + 18, base_y + height // 3, width, height // 3))
 
-    # Triangle
-    points = [(base_x, base_y + height // 2), 
-              (base_x + width, base_y), 
-              (base_x + width, base_y + height)]
+    # Triangle for the arrowhead
+    points = [
+        (base_x, base_y + height // 2),
+        (base_x + width, base_y),
+        (base_x + width, base_y + height)
+    ]
     pygame.draw.polygon(screen, arrow_color, points)
 
-def draw_pause_play_button(screen, paused):
-    button_color = (255, 255, 255)
+def draw_pause_play_button(screen, paused, is_hovered):
+    button_color = (255, 255, 255) if is_hovered else (200, 200, 200)
     base_x, base_y = 70, 20
     width, height = 30, 30
 
     if paused:  # Triangle for play
-        points = [(base_x, base_y), 
-                  (base_x + width, base_y + height // 2), 
-                  (base_x, base_y + height)]
+        points = [
+            (base_x, base_y),
+            (base_x + width, base_y + height // 2),
+            (base_x, base_y + height)
+        ]
         pygame.draw.polygon(screen, button_color, points)
     else:  # Two vertical rectangles for pause
         bar_width = width // 3
         pygame.draw.rect(screen, button_color, (base_x, base_y, bar_width, height))
         pygame.draw.rect(screen, button_color, (base_x + 2 * bar_width, base_y, bar_width, height))
 
-def draw_reset_button(screen):
-    button_color = (255, 255, 255)
+def draw_reset_button(screen, is_hovered):
+    button_color = (255, 255, 255) if is_hovered else (200, 200, 200)
     center_x, center_y = 120, 35
     radius = 15
 
+    # Circle for the reset button
     pygame.draw.circle(screen, button_color, (center_x, center_y), radius, 2)
 
+    # Arrow inside the circle
     arrow_points = [
-        (center_x + radius, center_y),
-        (center_x + radius - 8, center_y - 5),
-        (center_x + radius - 8, center_y + 5)
+        (center_x + radius - 8, center_y + 2),
+        (center_x + radius - 18, center_y - 3),
+        (center_x + radius - 18, center_y + 7)
     ]
     pygame.draw.polygon(screen, button_color, arrow_points)
 
@@ -256,18 +263,31 @@ def run_simulation(particle_count, radius):
     clock = pygame.time.Clock()
     particles = initialize_particles(particle_count, radius)
 
-    # Trails dictionary for particle paths
+    # Trails dictionary for particles
     trails = {p: [] for p in particles}
-    selected_particle = None  # For dragging a particle
+    dragged_particle = None  # Ensures that the particle stays under the cursor
 
-    trail_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)  # Persistent surface for trails
-    max_trail_length = 50  # Limit trail length
+    trail_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)  # For smooth surface for trails
+    max_trail_length = 50  # To limit max trail length
 
-    paused = False  # Pause/play state
+    paused = False  # Pause/play
     running = True
+
+    # Initializing button press states
+    back_button_pressed = False
+    pause_button_pressed = False
+    reset_button_pressed = False
 
     while running:
         screen.fill((0, 0, 0))  # Clear the main screen
+
+        #  To get the current mouse position
+        mouse_x, mouse_y = pygame.mouse.get_pos()
+
+        # Calculate cursor hover states continuously
+        back_hovered = 20 <= mouse_x <= 50 and 20 <= mouse_y <= 50
+        pause_hovered = 70 <= mouse_x <= 100 and 20 <= mouse_y <= 50
+        reset_hovered = 105 <= mouse_x <= 135 and 20 <= mouse_y <= 50
 
         # Handle events
         for event in pygame.event.get():
@@ -280,33 +300,41 @@ def run_simulation(particle_count, radius):
                     return  # Back to the main menu
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                mouse_x, mouse_y = event.pos
+                # Check if back button is being pressed
+                if back_hovered:
+                    back_button_pressed = True
 
-                # Check if back button clicked
-                if 20 <= mouse_x <= 50 and 20 <= mouse_y <= 50:
-                    return  # Go back to the main menu
+                # Check if pause/play button is being pressed
+                if pause_hovered:
+                    pause_button_pressed = True
 
-                # Check if pause/play button clicked
-                if 70 <= mouse_x <= 100 and 20 <= mouse_y <= 50:
-                    paused = not paused  # Toggle pause/play state
+                # Check if reset button is being pressed
+                if reset_hovered:
+                    reset_button_pressed = True
 
-                # Check if reset button clicked
-                if 105 <= mouse_x <= 135 and 20 <= mouse_y <= 50:
-                    particles = initialize_particles(particle_count, radius)  # Reset particles
-                    trails = {p: [] for p in particles}  # Reset trails
-
-                # Check if a particle is being clicked for dragging
+                # Check if a particle is clicked for dragging
                 for p in particles:
                     if math.sqrt((mouse_x - p.x) ** 2 + (mouse_y - p.y) ** 2) < p.radius:
-                        selected_particle = p
+                        dragged_particle = p
                         break
 
             elif event.type == pygame.MOUSEBUTTONUP:
-                selected_particle = None  # Stop dragging particles
+                # Trigger actions after the button releases
+                if back_button_pressed and back_hovered:
+                    return  # Go back to the main menu
+                if pause_button_pressed and pause_hovered:
+                    paused = not paused  # Pause/play
+                if reset_button_pressed and reset_hovered:
+                    particles = initialize_particles(particle_count, radius)  # Reset particles
+                    trails = {p: [] for p in particles}  # Reset trails
 
-            elif event.type == pygame.MOUSEMOTION and selected_particle:
-                mouse_x, mouse_y = pygame.mouse.get_pos()
-                selected_particle.x, selected_particle.y = mouse_x, mouse_y
+                # Reset button press states
+                back_button_pressed = pause_button_pressed = reset_button_pressed = False
+                dragged_particle = None  # Stop dragging particles
+
+        # Keep the dragged particle under the cursor
+        if dragged_particle:
+            dragged_particle.x, dragged_particle.y = mouse_x, mouse_y
 
         # Update simulation only if not paused
         if not paused:
@@ -324,7 +352,7 @@ def run_simulation(particle_count, radius):
                 if len(trails[p]) > max_trail_length:
                     trails[p].pop(0)
 
-        # Draw comet-like trails
+        # To draw comet-like trails
         trail_surface.fill((0, 0, 0, 0))  # Clear trail surface
         for p in particles:
             if len(trails[p]) > 1:
@@ -333,7 +361,6 @@ def run_simulation(particle_count, radius):
                     x2, y2, radius2 = trails[p][i - 1]
                     alpha = int(255 * (i / len(trails[p])))
 
-                    # Width for fade effect
                     width1 = radius1 * ((i / len(trails[p])) ** 0.5)
                     width2 = radius2 * (((i - 1) / len(trails[p])) ** 0.5)
 
@@ -360,9 +387,9 @@ def run_simulation(particle_count, radius):
             pygame.draw.circle(screen, color, (int(p.x), int(p.y)), p.radius)
 
         # Draw buttons
-        draw_back_button(screen)
-        draw_pause_play_button(screen, paused)
-        draw_reset_button(screen)
+        draw_back_button(screen, back_hovered)
+        draw_pause_play_button(screen, paused, pause_hovered)
+        draw_reset_button(screen, reset_hovered)
 
         pygame.display.flip()
         clock.tick(60)
@@ -370,12 +397,12 @@ def run_simulation(particle_count, radius):
     pygame.quit()
 
 def main():
-    while True:  # Main loop for the application
+    while True:
         particle_count, radius = menu()
         if particle_count is None or radius is None:
-            pygame.quit()  # Properly quit Pygame
-            return  # Exit the program entirely
-        run_simulation(particle_count, radius)  # Start the simulation
+            pygame.quit()
+            return
+        run_simulation(particle_count, radius)
 
 if __name__ == "__main__":
     main()
